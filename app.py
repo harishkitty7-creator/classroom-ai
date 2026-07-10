@@ -3,16 +3,19 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# DATABASE INITIALIZATION
+# DATABASE INITIALIZATION & LIVE SYNC
 def init_clean_db():
     conn = sqlite3.connect("classroom_ai.db")
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, password TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_no TEXT PRIMARY KEY, name TEXT, photo_path TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, reg_no TEXT, status TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_no TEXT PRIMARY KEY, name TEXT, status TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, reg_no TEXT, name TEXT, status TEXT)''')
+    
+    # Default Mock Profiles Setup
     cursor.execute("INSERT OR IGNORE INTO staff VALUES ('ST101', 'Kumar', 'password123')")
     cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG001', 'Manoj', 'Active')")
     cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG002', 'Vishnu', 'Active')")
+    cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG003', 'Abhi', 'Active')")
     conn.commit()
     conn.close()
 
@@ -40,7 +43,7 @@ if not st.session_state['logged_in']:
                 st.session_state['staff_name'] = result[0]
                 st.rerun()
             else:
-                st.error("Invalid Login!")
+                st.error("Invalid Login details entered!")
 
 # --- DASHBOARD SCREEN ---
 else:
@@ -49,21 +52,57 @@ else:
     
     if menu == "Live Class Session":
         st.header("📹 Live Classroom Monitor (Browser Native Cam)")
-        st.write("Python dependencies illama direct browser support moolama camera inga open aagum.")
         
-        # Streamlit-oda official built-in camera component (No OpenCV Needed!)
         img_file = st.camera_input("🚀 Take Attendance Photo / Scan Classroom")
         
         if img_file is not None:
             st.success("📸 Image captured successfully by AI engine!")
             st.image(img_file, caption="Classroom Scan Snapshot")
             
-            # Simulated Attendance marking logic
-            st.info("AI Analysis: 2 Students detected. Attendance log tracking complete.")
+            # AUTOMATIC ATTENDANCE SHEET ENTRY LOGIC
+            st.subheader("📊 Processing Real-time Attendance Updates...")
+            
+            conn = sqlite3.connect("classroom_ai.db")
+            cursor = conn.cursor()
+            
+            # Fetch current live date timestamp
+            current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Simulated Face Map Matches (Manoj and Vishnu present)
+            present_students = [
+                ('REG001', 'Manoj'),
+                ('REG002', 'Vishnu')
+            ]
+            
+            for reg_no, name in present_students:
+                # Prevent duplicate entries for the same active session block
+                cursor.execute("SELECT * FROM attendance WHERE reg_no=? AND date LIKE ?", (reg_no, current_date[:10] + "%"))
+                already_marked = cursor.fetchone()
+                
+                if not already_marked:
+                    cursor.execute("INSERT INTO attendance (date, reg_no, name, status) VALUES (?, ?, ?, 'Present')", 
+                                   (current_date, reg_no, name))
+            
+            conn.commit()
+            conn.close()
+            st.balloons()
+            st.success("🎯 AI Database Engine Synced! Present logs compiled for Manoj and Vishnu.")
 
     elif menu == "View Attendance Reports":
-        st.header("📊 Student Attendance Log")
+        st.header("📊 Student Attendance Database Log Sheets")
+        
         conn = sqlite3.connect("classroom_ai.db")
-        df = pd.read_sql_query("SELECT * FROM students", conn)
+        
+        st.subheader("👨‍🎓 Registered Batch Profiles")
+        df_students = pd.read_sql_query("SELECT * FROM students", conn)
+        st.dataframe(df_students, use_container_width=True)
+        
+        st.subheader("📝 Live Automated Attendance Sheet")
+        df_attendance = pd.read_sql_query("SELECT * FROM attendance ORDER BY id DESC", conn)
+        
+        if df_attendance.empty:
+            st.warning("No attendance records scanned yet.")
+        else:
+            st.dataframe(df_attendance, use_container_width=True)
+            
         conn.close()
-        st.dataframe(df, use_container_width=True)
