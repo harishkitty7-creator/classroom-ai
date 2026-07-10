@@ -3,28 +3,40 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# DATABASE INITIALIZATION & LIVE SYNC
+# CRASH-PROOF DATABASE INITIALIZATION
 def init_clean_db():
     conn = sqlite3.connect("classroom_ai.db")
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, password TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_no TEXT PRIMARY KEY, name TEXT, status TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, reg_no TEXT, name TEXT, status TEXT)''')
     
-    # Default Mock Profiles Setup
+    # Drop existing incomplete tables to avoid column count crashes
+    cursor.execute("DROP TABLE IF EXISTS staff")
+    cursor.execute("DROP TABLE IF EXISTS students")
+    cursor.execute("DROP TABLE IF EXISTS attendance")
+    
+    # Recreate structured tables cleanly
+    cursor.execute('''CREATE TABLE staff (staff_id TEXT PRIMARY KEY, name TEXT, password TEXT)''')
+    cursor.execute('''CREATE TABLE students (reg_no TEXT PRIMARY KEY, name TEXT, status TEXT)''')
+    cursor.execute('''CREATE TABLE attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, reg_no TEXT, name TEXT, status TEXT)''')
+    
+    # Insert Fresh Data Records
     cursor.execute("INSERT OR IGNORE INTO staff VALUES ('ST101', 'Kumar', 'password123')")
     cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG001', 'Manoj', 'Active')")
     cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG002', 'Vishnu', 'Active')")
     cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG003', 'Abhi', 'Active')")
+    
     conn.commit()
     conn.close()
 
-init_clean_db()
+# Always ensure the database has the fresh structure on reload
+if 'db_ready' not in st.session_state:
+    init_clean_db()
+    st.session_state['db_ready'] = True
 
 st.set_page_config(page_title="AI Classroom System", layout="wide")
 st.title("🎓 AI Classroom Attention & Attendance System")
 
-if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
+if 'logged_in' not in st.session_state: 
+    st.session_state['logged_in'] = False
 
 # --- LOGIN SCREEN ---
 if not st.session_state['logged_in']:
@@ -59,34 +71,28 @@ else:
             st.success("📸 Image captured successfully by AI engine!")
             st.image(img_file, caption="Classroom Scan Snapshot")
             
-            # AUTOMATIC ATTENDANCE SHEET ENTRY LOGIC
             st.subheader("📊 Processing Real-time Attendance Updates...")
             
             conn = sqlite3.connect("classroom_ai.db")
             cursor = conn.cursor()
             
-            # Fetch current live date timestamp
             current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # Simulated Face Map Matches (Manoj and Vishnu present)
+            # Simulated Student detection matches
             present_students = [
                 ('REG001', 'Manoj'),
                 ('REG002', 'Vishnu')
             ]
             
             for reg_no, name in present_students:
-                # Prevent duplicate entries for the same active session block
-                cursor.execute("SELECT * FROM attendance WHERE reg_no=? AND date LIKE ?", (reg_no, current_date[:10] + "%"))
-                already_marked = cursor.fetchone()
-                
-                if not already_marked:
-                    cursor.execute("INSERT INTO attendance (date, reg_no, name, status) VALUES (?, ?, ?, 'Present')", 
-                                   (current_date, reg_no, name))
+                # Direct safe insertion with accurate 5 column parameters mapping
+                cursor.execute("INSERT INTO attendance (date, reg_no, name, status) VALUES (?, ?, ?, 'Present')", 
+                               (current_date, reg_no, name))
             
             conn.commit()
             conn.close()
             st.balloons()
-            st.success("🎯 AI Database Engine Synced! Present logs compiled for Manoj and Vishnu.")
+            st.success("🎯 AI Database Engine Synced Successfully!")
 
     elif menu == "View Attendance Reports":
         st.header("📊 Student Attendance Database Log Sheets")
