@@ -3,31 +3,37 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# CRASH-PROOF DATABASE INITIALIZATION
+# CLEAN DATABASE WITH REAL BATCH PROFILES
 def init_clean_db():
     conn = sqlite3.connect("classroom_ai.db")
     cursor = conn.cursor()
     
-    # Drop existing incomplete tables to avoid column count crashes
+    # Drop existing tables to clear old mock names data safely
     cursor.execute("DROP TABLE IF EXISTS staff")
     cursor.execute("DROP TABLE IF EXISTS students")
     cursor.execute("DROP TABLE IF EXISTS attendance")
     
-    # Recreate structured tables cleanly
+    # Recreate clean data grids
     cursor.execute('''CREATE TABLE staff (staff_id TEXT PRIMARY KEY, name TEXT, password TEXT)''')
     cursor.execute('''CREATE TABLE students (reg_no TEXT PRIMARY KEY, name TEXT, status TEXT)''')
     cursor.execute('''CREATE TABLE attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, reg_no TEXT, name TEXT, status TEXT)''')
     
-    # Insert Fresh Data Records
+    # Staff Configuration
     cursor.execute("INSERT OR IGNORE INTO staff VALUES ('ST101', 'Kumar', 'password123')")
-    cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG001', 'Manoj', 'Active')")
-    cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG002', 'Vishnu', 'Active')")
-    cursor.execute("INSERT OR IGNORE INTO students VALUES ('REG003', 'Abhi', 'Active')")
+    
+    # REAL BATCH DATA INJECTION
+    real_students = [
+        ('REG013', 'Manoj M', 'Active'),
+        ('REG025', 'Vishnu K', 'Active'),
+        ('REG007', 'Janani S', 'Active'),
+        ('REG005', 'Harish T M', 'Active')
+    ]
+    cursor.executemany("INSERT OR IGNORE INTO students VALUES (?, ?, ?)", real_students)
     
     conn.commit()
     conn.close()
 
-# Always ensure the database has the fresh structure on reload
+# Enforce clean database setup on state reload
 if 'db_ready' not in st.session_state:
     init_clean_db()
     st.session_state['db_ready'] = True
@@ -78,21 +84,20 @@ else:
             
             current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # Simulated Student detection matches
+            # Simulated Real-time Detection (Manoj M and Vishnu K detected)
             present_students = [
-                ('REG001', 'Manoj'),
-                ('REG002', 'Vishnu')
+                ('REG013', 'Manoj M'),
+                ('REG025', 'Vishnu K')
             ]
             
             for reg_no, name in present_students:
-                # Direct safe insertion with accurate 5 column parameters mapping
                 cursor.execute("INSERT INTO attendance (date, reg_no, name, status) VALUES (?, ?, ?, 'Present')", 
                                (current_date, reg_no, name))
             
             conn.commit()
             conn.close()
             st.balloons()
-            st.success("🎯 AI Database Engine Synced Successfully!")
+            st.success("🎯 Real Student Database Engine Synced Successfully!")
 
     elif menu == "View Attendance Reports":
         st.header("📊 Student Attendance Database Log Sheets")
